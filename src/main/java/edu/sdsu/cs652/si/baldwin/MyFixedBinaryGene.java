@@ -1,4 +1,4 @@
-package edu.sdsu.cs652.si.baldwin.core;
+package edu.sdsu.cs652.si.baldwin;
 
 import org.jgap.Configuration;
 import org.jgap.Gene;
