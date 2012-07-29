@@ -1,5 +1,8 @@
 package edu.sdsu.cs652.si.baldwin;
 
+import java.util.HashMap;
+import java.util.List;
+
 import org.jgap.Chromosome;
 import org.jgap.Configuration;
 import org.jgap.Gene;
@@ -12,33 +15,35 @@ import org.jgap.impl.DefaultConfiguration;
 import org.jgap.impl.MutationOperator;
 import org.jgap.impl.WeightedRouletteSelector;
 
-
 public class BaldwinGA {
-	
-	private final int numberOfEvolutions;
-	
-	private final Genotype genotype;
-	private final Configuration gaConf;
-	private final boolean[][] antigens;
 
-	private BaldwinFitnessFunction fitnessFunction;
-	
-	
-	public BaldwinGA(int numberOfAntigens, int numberOfEvolutions) throws InvalidConfigurationException {
-		this.numberOfEvolutions = numberOfEvolutions;
+	private final BaldwinGASimulationProfile simulationProfile;
+
+	public BaldwinGA(BaldwinGASimulationProfile simulationProfile) throws InvalidConfigurationException {
+		this.simulationProfile = simulationProfile;
+	}
+
+	public double runSimulation(boolean quiet) throws InvalidConfigurationException {
+		Configuration.reset();
 		
-		gaConf = new DefaultConfiguration();
+		DefaultConfiguration gaConf = new DefaultConfiguration();
 		gaConf.getGeneticOperators().clear();
 		gaConf.setPreservFittestIndividual(false);
 		gaConf.setKeepPopulationSizeConstant(true);
-		
-		gaConf.getNaturalSelectors(false).clear();
-		//WeightedRouletteSelector selector = new WeightedRouletteSelector(gaConf);
-		
-		RankProportionalRouletteSelector rankSelector = new RankProportionalRouletteSelector(gaConf);
-		gaConf.addNaturalSelector(rankSelector, false);
 
-		
+		gaConf.getNaturalSelectors(false).clear();
+
+		WeightedRouletteSelector selector = new WeightedRouletteSelector(gaConf);
+		gaConf.addNaturalSelector(selector, false);
+
+		// RankProportionalRouletteSelector rankSelector = new
+		// RankProportionalRouletteSelector(gaConf);
+		// gaConf.addNaturalSelector(rankSelector, false);
+
+		// RankProportionalSelector rankSelector = new
+		// RankProportionalSelector(gaConf);
+		// gaConf.addNaturalSelector(rankSelector, false);
+
 		CrossoverOperator crossoverOperator = new CrossoverOperator(gaConf, 0.6);
 		gaConf.addGeneticOperator(crossoverOperator);
 
@@ -46,99 +51,92 @@ public class BaldwinGA {
 		mutationOperator.setMutationRate(500);
 		gaConf.addGeneticOperator(mutationOperator);
 
-		
 		IChromosome sampleChromosome = createEmptyChromosome(gaConf);
 		gaConf.setSampleChromosome(sampleChromosome);
 		gaConf.setPopulationSize(50);
-		
-		antigens = AntigenUniverse.getAnitgenSubset(8);
-		
-		System.out.println("Antigen Space");
-		System.out.println("-------------\n");
-		for (int i = 0; i < antigens.length; i++) {
-			boolean[] antigen = antigens[i];
-			System.out.println("Antigen " + (i + 1) + ": " + AntigenUniverse.antigenToString(antigen));
-		}
-		System.out.println("\n");
-		
-		this.fitnessFunction = new BaldwinFitnessFunction(antigens);
-		
+
+		AntigenUniverse antigenUniverse = AntigenUniverse.createAntigenUnivers(simulationProfile.getAntigenUniverseSize(),
+				Constants.ANTIBODY_LENGTH);
+
+		BaldwinFitnessFunction fitnessFunction = new BaldwinFitnessFunction(antigenUniverse, simulationProfile.getMaxLearningGuesses(), simulationProfile.getLearningPenalty());
+
 		gaConf.setFitnessFunction(fitnessFunction);
 		Population population = new Population(gaConf);
 		for (int i = 0; i < 50; i++) {
 			population.addChromosome(createEmptyChromosome(gaConf));
 		}
 
-		genotype = new Genotype(gaConf, population);
-	}
-	
-	public void run() throws InvalidConfigurationException {
+		Genotype genotype = new Genotype(gaConf, population);
+		
 		int percentEvolution = 10;
-		for (int i = 0; i < numberOfEvolutions; i++) {
+		for (int i = 0; i < simulationProfile.getNumberOfGenerations(); i++) {
 			genotype.evolve();
-			if (percentEvolution > 0 && i % percentEvolution == 0) {
+			if (!quiet && percentEvolution > 0 && i % percentEvolution == 0) {
 				IChromosome fittest = genotype.getFittestChromosome();
 				double fitness = fittest.getFitnessValue();
-				System.out.print("Genertion " + i + " best fitness: " + fitness + " ");
-				ChromosomeMetaData metaData = (ChromosomeMetaData)fittest.getApplicationData();
-				for (int j = 0; j < antigens.length; j++) {
-					System.out.print(metaData.getAntigenFitnessData().get(j).getGeneticMatchScore() + " ");
+				System.out.print("Genertion " + (i + percentEvolution)
+						+ " best fitness: " + fitness + " ");
+				ChromosomeMetaData metaData = (ChromosomeMetaData) fittest
+						.getApplicationData();
+				for (int j = 0; j < 8; j++) {
+					System.out.print(metaData.getAntigenFitnessData().get(j)
+							.getGeneticMatchScore()
+							+ " ");
 				}
 				System.out.println();
-				if (fitness >= 512) {
-					break;
-				}
+
 			}
 		}
-		
-		System.out.println();
-		System.out.println("---------");
-		System.out.println(" Summary ");
-		System.out.println("---------");
-		System.out.println();
-		
-		// Print summary.
-		Chromosome fittest = (Chromosome)genotype.getFittestChromosome();
-		boolean[][] antibodies = PhenotypeExpressor.createAntibodies((Chromosome)fittest);
-		double totalMatch = 0;
-		for (int i = 0; i < this.antigens.length; i++) {
-			boolean[] antigen = this.antigens[i];
-			GeneticMatchResult result = fitnessFunction.findBestGeneticMatch(antigen, antibodies);
-			System.out.print("Antigen " + (i+1) + ":  ");
-			System.out.println(AntigenUniverse.antigenToString(antigen));
-			System.out.print("Best Match: ");
-			System.out.println(AntigenUniverse.antigenToString(result.getAntibody()));
-			System.out.print("XOR:        ");
-			System.out.print(AntigenUniverse.xorToString(antigen, result.getAntibody()));
-			System.out.println(" (Score: " + result.getGeneticMatchScore() + ")\n");
-			totalMatch += result.getGeneticMatchScore();
+
+		return getPopulationAverageFitness(antigenUniverse, genotype, fitnessFunction);
+	}
+	
+	public double getPopulationAverageFitness(AntigenUniverse antigenUniverse, Genotype genotype, BaldwinFitnessFunction fitnessFunction) {
+		List<IChromosome> chromosomes = genotype.getPopulation()
+				.getChromosomes();
+		HashMap<IChromosome, boolean[][]> chromosomeAntibodyMap = new HashMap<IChromosome, boolean[][]>();
+		for (IChromosome chromosome : chromosomes) {
+			boolean[][] antibodies = PhenotypeExpressor
+					.createAntibodies((Chromosome) chromosome);
+			chromosomeAntibodyMap.put(chromosome, antibodies);
 		}
-		totalMatch = totalMatch / antigens.length;
-		
-		System.out.println("Average Fitness " + fittest.getFitnessValue());
-		System.out.println("Average Match Score " + totalMatch);
-		System.out.println();
-		
-		printChromosome(fittest);
+
+		boolean[][] antigens = antigenUniverse.getAntigents();
+		double populationTotal = 0.0;
+		for (boolean[] antigen : antigens) {
+			double totalAntigenMatch = 0.0;
+			for (IChromosome chromosome : chromosomes) {
+				boolean[][] antibodies = chromosomeAntibodyMap.get(chromosome);
+				GeneticMatchResult result = fitnessFunction.findBestGeneticMatch(antigen, antibodies);
+				totalAntigenMatch += result.getGeneticMatchScore();
+			}
+			double antigenAverage = totalAntigenMatch / chromosomes.size();
+			populationTotal += antigenAverage;
+		}
+		return populationTotal / antigens.length;
 	}
+
 	
-	private void printChromosome(IChromosome chromosome) {
-		String printed = ChromosomePrinter.toString(chromosome);
-		System.out.println(printed);
-	}
 	
-	public Chromosome createEmptyChromosome(Configuration gaConfig) throws InvalidConfigurationException {
-		MyFixedBinaryGene gene = new MyFixedBinaryGene(gaConfig, Constants.CHROMOSOME_LENGTH);
+	public Chromosome createEmptyChromosome(Configuration gaConfig)
+			throws InvalidConfigurationException {
+		MyFixedBinaryGene gene = new MyFixedBinaryGene(gaConfig,
+				Constants.CHROMOSOME_LENGTH);
 		for (int i = 0; i < Constants.CHROMOSOME_LENGTH; i++) {
 			gene.setBit(i, false);
 		}
-		Chromosome result = new Chromosome(gaConfig, new Gene[] {gene});
+		Chromosome result = new Chromosome(gaConfig, new Gene[] { gene });
 		return result;
 	}
-	
+
 	public static void main(String[] args) throws InvalidConfigurationException {
-		BaldwinGA isga = new BaldwinGA(8, 1000);
-		isga.run();
+		BaldwinGASimulationProfile profile = new BaldwinGASimulationProfile(32, 8, 1000, 0, 0);
+		BaldwinGA isga = new BaldwinGA(profile);
+		double average = isga.runSimulation(false);
+		System.out.println("Average: " + average);
+		
+		average = isga.runSimulation(false);
+		System.out.println("Average: " + average);
 	}
 
 }

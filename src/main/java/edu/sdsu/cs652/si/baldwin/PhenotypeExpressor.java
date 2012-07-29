@@ -1,6 +1,7 @@
 package edu.sdsu.cs652.si.baldwin;
 
 import org.jgap.Chromosome;
+import org.jgap.IChromosome;
 
 
 public class PhenotypeExpressor {
@@ -44,7 +45,6 @@ public class PhenotypeExpressor {
 			surface[index++] = bit;
 		}
 		
-		
 		return surface;
 	}
 	
@@ -54,5 +54,16 @@ public class PhenotypeExpressor {
 		int segmentStart = libraryStart + (segmentIndex * Constants.BITS_PER_SEGMENT);
 		int bitOffset = segmentStart + bitIndex;
 		return fbg.getBit(bitOffset);
+	}
+	
+	public static boolean[] getSegment(IChromosome chromosome, int libraryIndex, int segmentIndex) {
+		boolean[] segment = new boolean[16];
+		int libraryStart = libraryIndex * Constants.SEGMENTS_PER_LIBRARY;
+		int offset = libraryStart + (segmentIndex * Constants.BITS_PER_SEGMENT);
+		MyFixedBinaryGene fbg = (MyFixedBinaryGene)chromosome.getGene(0);
+		for (int i = 0; i < Constants.BITS_PER_SEGMENT; i++) {
+			segment[i] = fbg.getBit(offset++);
+		}
+		return segment;
 	}
 }

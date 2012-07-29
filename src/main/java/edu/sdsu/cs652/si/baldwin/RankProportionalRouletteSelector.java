@@ -59,7 +59,7 @@ public class RankProportionalRouletteSelector
    * roulette wheel. This is equal to the combined fitness values of
    * all Chromosome instances that have been added to this wheel.
    */
-  private double m_totalNumberOfUsedSlots;
+  private int m_totalNumberOfUsedSlots;
 
   /**
    * An internal pool in which discarded SlotCounter instances can be stored
@@ -193,13 +193,13 @@ public class RankProportionalRouletteSelector
 		}
 	});
     
-    m_totalNumberOfUsedSlots = 0.0d;
+    m_totalNumberOfUsedSlots = 0;
     for (int i = 0; i < chromosomeList.size(); i++) {
      
       IChromosome currentChromosome = chromosomeList.get(i);
       SlotCounter currentCounter = (SlotCounter)m_wheel.get(currentChromosome);
       fitnessValues[i] = currentCounter.getFitnessValue();
-      counterValues[i] = i;
+      counterValues[i] = i+1;
       chromosomes[i] = currentChromosome;
       // We're also keeping track of the total number of slots,
       // which is the sum of all the counter values.
@@ -272,11 +272,8 @@ public class RankProportionalRouletteSelector
                                 final IChromosome[] a_chromosomes) {
     // Randomly choose a slot on the wheel.
     // ------------------------------------
-    double selectedSlot =
-        a_generator.nextDouble() * m_totalNumberOfUsedSlots;
-    if (selectedSlot > m_totalNumberOfUsedSlots) {
-      selectedSlot = m_totalNumberOfUsedSlots;
-    }
+    int selectedSlot = a_generator.nextInt(m_totalNumberOfUsedSlots);
+    
     // Loop through the wheel until we find our selected slot. Here's
     // how this works: we have three arrays, one with the fitness values
     // of the chromosomes, one with the total number of slots on the
@@ -293,7 +290,7 @@ public class RankProportionalRouletteSelector
     // reaches or exceeds the chosen slot number. When that happenes,
     // we've found the chromosome sitting in that slot and we return it.
     // --------------------------------------------------------------------
-    double currentSlot = 0.0d;
+    int currentSlot = 0;
     FitnessEvaluator evaluator = getConfiguration().getFitnessEvaluator();
     boolean isFitter2_1 = evaluator.isFitter(2, 1);
     for (int i = 0; i < a_counterValues.length; i++) {
@@ -303,30 +300,13 @@ public class RankProportionalRouletteSelector
       boolean found;
       if (isFitter2_1) {
         // Introduced DELTA to fix bug 1449651
-        found = selectedSlot - currentSlot <= DELTA;
+        found = selectedSlot <= currentSlot;
       }
       else {
         // Introduced DELTA to fix bug 1449651
-        found = Math.abs(currentSlot - selectedSlot) <= DELTA;
+        found = currentSlot >= selectedSlot;
       }
       if (found) {
-        // Remove one instance of the chromosome from the wheel by
-        // decrementing the slot counter by the fitness value resp.
-        // resetting the counter if doublette chromosomes are not
-        // allowed.
-        // -------------------------------------------------------
-        if (!getDoubletteChromosomesAllowed()) {
-          m_totalNumberOfUsedSlots -= a_counterValues[i];
-          a_counterValues[i] = 0;
-        }
-        else {
-          a_counterValues[i] -= a_fitnessValues[i];
-          m_totalNumberOfUsedSlots -= a_fitnessValues[i];
-        }
-        // Introduced DELTA to fix bug 1449651
-        if (Math.abs(m_totalNumberOfUsedSlots) < DELTA) {
-          m_totalNumberOfUsedSlots = 0.0d;
-        }
         // Now return our selected Chromosome.
         // -----------------------------------
         return a_chromosomes[i];

@@ -1,6 +1,7 @@
 package edu.sdsu.cs652.si.baldwin;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class ChromosomeMetaData {
@@ -17,6 +18,15 @@ public class ChromosomeMetaData {
 	
 	public List<AntigenFitnessData> getAntigenFitnessData() {
 		return antigenFitnessData;
+	}
+	
+	public double getPopulationAverageGeneticMatch() {
+		double geneticMatchTotal = 0.0;
+		for (Iterator<AntigenFitnessData> iterator = antigenFitnessData.iterator(); iterator.hasNext();) {
+			 AntigenFitnessData antigenFitness = iterator.next();
+			 geneticMatchTotal += antigenFitness.getGeneticMatchScore();
+		}
+		return geneticMatchTotal / antigenFitnessData.size();
 	}
 	
 }
